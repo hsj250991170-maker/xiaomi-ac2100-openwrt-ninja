@@ -1,0 +1,115 @@
+name: Build Xiaomi AC2100 firmware
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xiaomi-ac2100-firmware
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: https://github.com/immortalwrt/immortalwrt.git
+  SOURCE_BRANCH: openwrt-24.10
+  SOURCE_COMMIT: 253a70f1f82f73136a9bd2695efd1696be88ad3c
+  PASSWALL_COMMIT: 3e3cf508b51f190397799b858dd7e0b008972d9c
+  PASSWALL_PACKAGES_COMMIT: 9d391e568d61c43be683b747b9ede811a61fc315
+  OPENCLASH_COMMIT: a9e5d98cd664917724dbfb0a31440e512ab45a1b
+  NINJA_VERSION: 9a5dd535
+  NINJA_SHA256: 6b0f3faab400862deccb50001dc2b63afa7117300299653ee887d914c631d7f7
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+
+    steps:
+      - name: Checkout build definition
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk \
+            gettext git g++-multilib gcc-multilib genisoimage gettext help2man intltool \
+            libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
+            libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool lld llvm \
+            msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip \
+            python3-ply python3-docutils qemu-utils re2c rsync scons squashfs-tools \
+            subversion swig texinfo uglifyjs unzip vim wget xmlto xxd zlib1g-dev zstd
+
+      - name: Clone ImmortalWrt
+        run: |
+          git init openwrt
+          git -C openwrt remote add origin "$SOURCE_REPO"
+          git -C openwrt fetch --depth 1 origin "$SOURCE_COMMIT"
+          git -C openwrt checkout --detach "$SOURCE_COMMIT"
+          test "$(git -C openwrt rev-parse HEAD)" = "$SOURCE_COMMIT"
+
+      - name: Cache downloads and compiler cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/dl
+            openwrt/.ccache
+          key: ac2100-${{ env.SOURCE_BRANCH }}-${{ hashFiles('config/xiaomi-ac2100.config', 'scripts/prepare.sh') }}
+          restore-keys: |
+            ac2100-${{ env.SOURCE_BRANCH }}-
+
+      - name: Add PassWall, OpenClash and V-Ninja
+        working-directory: openwrt
+        run: ../scripts/prepare.sh
+
+      - name: Configure target
+        working-directory: openwrt
+        run: |
+          cp ../config/xiaomi-ac2100.config .config
+          make defconfig
+          ./scripts/diffconfig.sh | tee ../effective.config
+          grep -q '^CONFIG_TARGET_ramips_mt7621_DEVICE_xiaomi_mi-router-ac2100=y$' .config
+          grep -q '^CONFIG_PACKAGE_luci-app-openclash=y$' .config
+          grep -q '^CONFIG_PACKAGE_luci-app-passwall=y$' .config
+          grep -q '^CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y$' .config
+
+      - name: Download sources
+        working-directory: openwrt
+        run: make download -j8 V=s
+
+      - name: Build firmware
+        working-directory: openwrt
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/openwrt/.ccache
+        run: |
+          make -j"$(nproc)" V=s || make -j1 V=sc
+
+      - name: Verify images and create checksums
+        run: |
+          test -s openwrt/bin/targets/ramips/mt7621/*xiaomi_mi-router-ac2100*squashfs-sysupgrade.bin
+          test -s openwrt/bin/targets/ramips/mt7621/*xiaomi_mi-router-ac2100*kernel1.bin
+          test -s openwrt/bin/targets/ramips/mt7621/*xiaomi_mi-router-ac2100*rootfs0.bin
+          cp effective.config openwrt/bin/targets/ramips/mt7621/
+          cd openwrt/bin/targets/ramips/mt7621
+          sha256sum * > SHA256SUMS
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xiaomi-AC2100-ImmortalWrt-24.10-Ninja-PassWall
+          path: openwrt/bin/targets/ramips/mt7621/
+          if-no-files-found: error
+          retention-days: 30
