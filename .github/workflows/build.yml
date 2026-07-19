@@ -73,7 +73,7 @@ jobs:
 
       - name: Add PassWall, OpenClash and V-Ninja
         working-directory: openwrt
-        run: ../scripts/prepare.sh
+        run: bash ../scripts/prepare.sh
 
       - name: Configure target
         working-directory: openwrt
