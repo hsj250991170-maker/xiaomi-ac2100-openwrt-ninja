@@ -24,3 +24,4 @@ curl --fail --location --retry 3 \
 echo "${NINJA_SHA256}  files/etc/openclash/core/clash_meta" | sha256sum --check --strict
 chmod 0755 files/etc/openclash/core/clash_meta
 cp ../files/etc/uci-defaults/90-proxy-safe-defaults files/etc/uci-defaults/
+chmod 0755 files/etc/uci-defaults/90-proxy-safe-defaults
