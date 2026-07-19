@@ -44,4 +44,4 @@ transparent proxy services at the same time on this device.
 - OpenClash: commit `a9e5d98c`
 - PassWall: commit `3e3cf508`; packages commit `9d391e56`
 - V-Ninja core: release `9a5dd535`, SHA-256
-  `6b0f3faab400862deccb50001dc2b63afa7117300299653ee887d914c631d7f7`
+  `2caac53536227c46a384cc5cae556a3a3f8b706bb2b210127b4340a11fd0a281`
