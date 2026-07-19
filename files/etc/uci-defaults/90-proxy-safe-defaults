@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# AC2100 has 128 MB RAM. Keep both proxy suites installed but never start them
+# together automatically; the administrator can enable the one currently used.
+/etc/init.d/openclash disable 2>/dev/null || true
+/etc/init.d/openclash stop 2>/dev/null || true
+/etc/init.d/passwall disable 2>/dev/null || true
+/etc/init.d/passwall stop 2>/dev/null || true
+
+uci -q set system.@system[0].hostname='Xiaomi-AC2100'
+uci -q set system.@system[0].zonename='Asia/Shanghai'
+uci -q set system.@system[0].timezone='CST-8'
+uci -q commit system
+
+exit 0
+
